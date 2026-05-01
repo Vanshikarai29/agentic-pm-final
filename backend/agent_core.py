@@ -1,5 +1,5 @@
 """
-agent_core.py — The central agent reasoning loop (Gemini version).
+agent_core.py — Central agent reasoning loop (google.genai version).
 """
 
 import uuid
@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from sqlalchemy.orm import Session
-import google.generativeai as genai
+from google import genai
 
 import tools
 from database import Project
@@ -24,15 +24,13 @@ class AgentCore:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise EnvironmentError(
-                "GEMINI_API_KEY is not set. Add it to backend/.env"
-            )
+            raise EnvironmentError("GEMINI_API_KEY is not set. Add it to backend/.env")
 
-        genai.configure(api_key=api_key)
+        self.client = genai.Client(api_key=api_key)
         self.prompts = tools.load_prompts("prompts.json")
-        self.planner = Planner(self.prompts)
-        self.risk_analyzer = RiskAnalyzer(self.prompts)
-        logger.info("[AGENT] Gemini AgentCore initialized")
+        self.planner = Planner(self.prompts, self.client)
+        self.risk_analyzer = RiskAnalyzer(self.prompts, self.client)
+        logger.info("[AGENT] AgentCore initialized (google.genai)")
 
     def reload_prompts(self):
         self.prompts = tools.load_prompts("prompts.json")
@@ -41,17 +39,15 @@ class AgentCore:
         logger.info("[AGENT] Prompts reloaded")
 
     def process_goal(self, db: Session, goal: str) -> dict:
-        import hashlib
         logger.info(f"[AGENT] process_goal: {goal[:80]}...")
 
         project_id = str(uuid.uuid4())
-        goal_hash = hashlib.md5(goal.encode()).hexdigest()
 
+        # No goal_hash — uses your existing database.py model
         project = Project(
             id=project_id,
             name="Initializing...",
             goal=goal,
-            goal_hash=goal_hash,
             summary="",
             status="active",
             health="GREEN",
@@ -67,11 +63,11 @@ class AgentCore:
             title="🚀 Agent Activated",
             content=(
                 f"New project goal received:\n\n\"{goal}\"\n\n"
-                f"Starting planning loop..."
+                "Starting planning loop..."
             ),
         )
 
-        # Plan
+        # Plan tasks
         try:
             project, tasks = self.planner.plan(db, project_id, goal)
         except Exception as e:
@@ -79,7 +75,7 @@ class AgentCore:
             tools.log_reasoning_step(
                 db, project_id=project_id, step_type="planning",
                 step_number=99, title="❌ Planning Error",
-                content=f"Error: {str(e)}",
+                content=f"Error during planning: {str(e)}",
             )
             tasks = []
 

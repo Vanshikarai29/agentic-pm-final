@@ -1,13 +1,13 @@
 """
-risk_analyzer.py — Risk detection and action-suggestion module (Gemini version).
+risk_analyzer.py — Risk detection and action-suggestion module (google.genai + JSON mode).
 """
 
 import json
 import logging
 import re
 from typing import Optional
-import google.generativeai as genai
-import os
+from google import genai
+from google.genai import types
 from sqlalchemy.orm import Session
 
 import tools
@@ -15,23 +15,27 @@ from database import Project, Risk, AgentAction
 
 logger = logging.getLogger(__name__)
 
-SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
-
 
 class RiskAnalyzer:
 
-    def __init__(self, prompts: dict):
+    def __init__(self, prompts: dict, client: genai.Client):
         self.prompts = prompts
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        # gemini-pro is deprecated — use gemini-1.5-flash
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        self.client = client
 
     def _call_gemini(self, prompt: str) -> str:
+        """Call Gemini with JSON response mode forced."""
         try:
-            response = self.model.generate_content(prompt)
-            return response.text
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash-lite",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.3,
+                ),
+            )
+            return response.text or ""
         except Exception as e:
-            logger.error(f"[RISK] Gemini API error: {e}")
+            logger.error(f"[RISK] Gemini error: {e}")
             return ""
 
     def analyze(self, db: Session, project_id: str) -> tuple[list, list]:
@@ -72,10 +76,15 @@ class RiskAnalyzer:
             .replace("{task_details}", task_details)
         )
 
-        full_prompt = system_prompt + "\n\n" + user_prompt
-        raw = self._call_gemini(full_prompt)
-        analysis = self._parse_json_response(raw)
+        full_prompt = (
+            system_prompt + "\n\n" + user_prompt +
+            "\n\nIMPORTANT: Return ONLY valid JSON. No markdown, no explanation. Just the raw JSON object."
+        )
 
+        raw = self._call_gemini(full_prompt)
+        logger.info(f"[RISK] Raw response (first 300 chars): {raw[:300]}")
+
+        analysis = self._parse_json_response(raw)
         if not analysis:
             logger.warning("[RISK] Falling back to default analysis")
             analysis = self._fallback_analysis(stats)
@@ -97,7 +106,6 @@ class RiskAnalyzer:
             data={"health": overall_health, "risk_count": len(risks_data)},
         )
 
-        # save_risks now returns ORM objects
         saved_risks = tools.save_risks(db, project_id, risks_data)
 
         for i, risk in enumerate(saved_risks):
@@ -139,6 +147,7 @@ class RiskAnalyzer:
             prompt_template
             .replace("{project_state}", project_state)
             .replace("{risks}", risks_summary)
+            + "\n\nIMPORTANT: Return ONLY a valid JSON array. No markdown, no explanation."
         )
 
         full_prompt = system_prompt + "\n\n" + user_prompt
@@ -176,7 +185,6 @@ class RiskAnalyzer:
             return {}
 
         stats = tools.get_task_stats(db, project_id)
-
         prompt_template = self.prompts.get("progress_analysis_prompt", "")
         system_prompt = self.prompts.get("system_prompt", "")
 
@@ -186,6 +194,7 @@ class RiskAnalyzer:
             .replace("{new_status}", new_status)
             .replace("{new_progress}", str(new_progress))
             .replace("{project_context}", str(stats))
+            + "\n\nIMPORTANT: Return ONLY valid JSON. No markdown, no explanation."
         )
 
         full_prompt = system_prompt + "\n\n" + user_prompt
@@ -211,6 +220,7 @@ class RiskAnalyzer:
     def _parse_json_response(self, raw: str) -> Optional[dict | list]:
         if not raw:
             return None
+        raw = raw.strip()
         patterns = [
             r"```json\s*([\s\S]+?)\s*```",
             r"```\s*([\s\S]+?)\s*```",
@@ -226,7 +236,8 @@ class RiskAnalyzer:
                     continue
         try:
             return json.loads(raw)
-        except Exception:
+        except Exception as e:
+            logger.error(f"[RISK] JSON parse failed: {e}\nRaw: {raw[:500]}")
             return None
 
     def _fallback_analysis(self, stats: dict) -> dict:
@@ -239,24 +250,20 @@ class RiskAnalyzer:
         risks = []
         if stats.get("overdue", 0) > 0:
             risks.append({
-                "type": "SCHEDULE",
-                "severity": "HIGH",
+                "type": "SCHEDULE", "severity": "HIGH",
                 "title": "Overdue Tasks Detected",
                 "description": f"{stats['overdue']} task(s) past due date.",
-                "probability": 0.9,
-                "impact": 0.7,
-                "suggested_action": "Review and re-prioritize overdue tasks immediately.",
+                "probability": 0.9, "impact": 0.7,
+                "suggested_action": "Review and re-prioritize overdue tasks.",
                 "reasoning": "Overdue tasks compound schedule slippage.",
                 "affected_tasks": [],
             })
         if stats.get("blocked", 0) > 0:
             risks.append({
-                "type": "DEPENDENCY",
-                "severity": "HIGH",
+                "type": "DEPENDENCY", "severity": "HIGH",
                 "title": "Blocked Tasks",
                 "description": f"{stats['blocked']} task(s) are blocked.",
-                "probability": 1.0,
-                "impact": 0.8,
+                "probability": 1.0, "impact": 0.8,
                 "suggested_action": "Identify and remove blockers immediately.",
                 "reasoning": "Blocked tasks halt downstream work.",
                 "affected_tasks": [],
