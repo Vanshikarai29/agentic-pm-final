@@ -231,6 +231,16 @@ html, body, #root {
   max-width: 780px; margin: 0 auto;
   display: flex; flex-direction: column; gap: 40px;
   padding: 60px 20px;
+  /*flex: 1;
+  overflow-y: auto;
+  min-height: 0;*/
+  width: 100%;
+}
+.goal-scroll-wrap {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  width: 100%;
 }
 .goal-hero { text-align: center; }
 .goal-hero-glyph {

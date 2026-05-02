@@ -124,7 +124,9 @@ export default function App() {
 
       {/* Content */}
       {!hasProject ? (
-        <GoalInput onSubmit={handleGoalSubmit} loading={loading} />
+        <div className="goal-scroll-wrap">
+          <GoalInput onSubmit={handleGoalSubmit} loading={loading} />
+        </div>
       ) : (
         <div className="workspace">
           {/* Nav tabs */}
