@@ -55,7 +55,9 @@ agentic-pm-final/
 ├── Makefile
 ├── README.md
 
+A complete walkthrough of the system, including goal creation, AI planning, risk analysis, and dashboard tracking:
 
+👉 Watch Demo: https://drive.google.com/file/d/1ygNx3yWtrSB_Py95lEzaVUeybp82jj7y/view?usp=drivesdk
 ---
 
 ## ⚙️ Setup Instructions
@@ -126,3 +128,4 @@ Multi-user collaboration
 PostgreSQL support
 AI task optimization engine
 Cloud deployment (Render / Vercel)
+
