@@ -46,7 +46,7 @@ html, body, #root {
 }
 
 /* ── Root layout ────────────────────────────────────────────── */
-.app-root { display: flex; height: 100vh; overflow: hidden; position: relative; }
+.app-root { display: flex; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
 .app-main {
   flex: 1;
   display: flex;
@@ -199,7 +199,7 @@ html, body, #root {
 .project-item-date { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
 
 /* ── Workspace ──────────────────────────────────────────────── */
-.workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .workspace-nav {
   display: flex; align-items: center; gap: 2px;
   padding: 0 16px; background: var(--bg-1);
@@ -224,6 +224,7 @@ html, body, #root {
 .tab-badge-blue { background: var(--blue); }
 
 .workspace-content { flex: 1; overflow-y: auto; padding: 20px; }
+.workspace-content > * { max-width: 1280px; margin-left: auto; margin-right: auto; }
 
 /* ── Goal Input Page ────────────────────────────────────────── */
 .goal-input-page {
@@ -701,3 +702,33 @@ html, body, #root {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+
+/* ── Nav tabs: horizontal scroll on small screens ── */
+.workspace-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.workspace-nav::-webkit-scrollbar { display: none; }
+
+/* ── Tablet (≤768px) ── */
+@media (max-width: 768px) {
+  .workspace-content { padding: 14px; }
+  .goal-input-page { padding: 36px 16px; gap: 28px; }
+  .goal-agent-info { grid-template-columns: 1fr; }
+  .risk-actions-layout { grid-template-columns: 1fr; }
+  .header-project { max-width: 160px; }
+}
+
+/* ── Mobile (≤480px) ── */
+@media (max-width: 480px) {
+  .app-header { padding: 0 10px; gap: 8px; }
+  .brand-name { font-size: 14px; }
+  .tab-label { display: none; }
+  .nav-tab { padding: 10px 12px; }
+  .workspace-content { padding: 10px; }
+  .goal-input-page { padding: 24px 12px; gap: 20px; }
+  .examples-grid { grid-template-columns: 1fr; }
+  .goal-agent-info { grid-template-columns: 1fr; }
+  .stats-row { gap: 8px; }
+  .stat-card { min-width: 90px; padding: 10px 12px; }
+  .header-project { display: none; }
+  .agent-thinking-badge { padding: 4px 8px; }
+  .thinking-label { display: none; }
+}
